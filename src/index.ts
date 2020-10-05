@@ -1,21 +1,64 @@
 import { startMonitoring, on } from "usb-detection";
-import { InputCode, setInputSource } from "./ddcController";
+import { InputCode, setInputSource, getInputSource } from "./ddcController";
 const args = process.argv.slice(2);
 
-// Pascal Case: https://stackoverflow.com/a/4068586
+const insertInputArg = (<any>InputCode)[args[0].toLowerCase()];
+const removeInputArg = (<any>InputCode)[args[1].toLowerCase()];
 
-const inputArg = args[0].replace(/\w+/g, (w) => {
-  return w[0].toUpperCase() + w.slice(1).toLowerCase();
-});
+const hubVendorId = args[2]; //Example: 1507;
+const hubProductId = args[3]; //Example: 1552;
 
-const targetInputCode = (<any>InputCode)[inputArg];
+if (insertInputArg === undefined) {
+  console.error("Failed to parse input code for insert");
+  process.exit(-1);
+}
 
-const hubVendorId = args[1]; //Example: 1507;
-const hubProductId = args[2]; //Example: 1552;
+if (removeInputArg === undefined) {
+  console.error("Failed to parse input code for removal");
+  process.exit(-1);
+}
+var currentInput: InputCode | null = null;
+var debouncing = false;
 
-startMonitoring();
-on(`insert:${hubVendorId}:${hubProductId}`, () => {
-  setInputSource(targetInputCode).catch(console.error);
-});
+function startDebounce() {
+  if (debouncing) {
+    return false;
+  }
+  debouncing = true;
+  setTimeout(() => (debouncing = false), 5000);
+  return true;
+}
 
-console.log("Monitoring");
+function updateInputSource(inputCode: InputCode) {
+  if (!startDebounce()) {
+    console.log("Ignoring hub detection event due to debounce");
+    return;
+  }
+
+  if (currentInput == inputCode) {
+    console.log("Skipped changing input source, already selected.");
+    return;
+  }
+  currentInput = inputCode;
+  setInputSource(insertInputArg)
+    .then(() => console.log(`Changed input source to ${inputCode}`))
+    .catch((error) => console.error("Failed to change input source", error));
+}
+
+async function run() {
+  currentInput = await getInputSource();
+
+  startMonitoring();
+
+  on(`insert:${hubVendorId}:${hubProductId}`, () => {
+    updateInputSource(insertInputArg);
+  });
+
+  on(`remove:${hubVendorId}:${hubProductId}`, () => {
+    updateInputSource(removeInputArg);
+  });
+
+  console.log(`Monitoring for Hub ${hubVendorId}:${hubProductId}`);
+}
+
+run();
