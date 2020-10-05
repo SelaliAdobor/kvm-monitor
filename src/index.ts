@@ -8,6 +8,8 @@ const removeInputArg = (<any>InputCode)[args[1].toLowerCase()];
 const hubVendorId = args[2]; //Example: 1507;
 const hubProductId = args[3]; //Example: 1552;
 
+const debounceIntervalMs = 5000; // Depends on the monitor, my monitor takes about 5 seconds to settle USB events
+
 if (insertInputArg === undefined) {
   console.error("Failed to parse input code for insert");
   process.exit(-1);
@@ -17,6 +19,7 @@ if (removeInputArg === undefined) {
   console.error("Failed to parse input code for removal");
   process.exit(-1);
 }
+
 var currentInput: InputCode | null = null;
 var debouncing = false;
 
@@ -25,7 +28,7 @@ function startDebounce() {
     return false;
   }
   debouncing = true;
-  setTimeout(() => (debouncing = false), 5000);
+  setTimeout(() => (debouncing = false), debounceIntervalMs);
   return true;
 }
 
@@ -39,7 +42,9 @@ function updateInputSource(inputCode: InputCode) {
     console.log("Skipped changing input source, already selected.");
     return;
   }
+
   currentInput = inputCode;
+
   setInputSource(insertInputArg)
     .then(() => console.log(`Changed input source to ${inputCode}`))
     .catch((error) => console.error("Failed to change input source", error));
